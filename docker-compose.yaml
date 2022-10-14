@@ -1,0 +1,29 @@
+version: "3"
+services:
+  xtractor-service:
+    build:
+      context: extractor
+      dockerfile: DockerFile
+    image: xtractor-service
+    
+
+    ports:
+      - "3001:3001"
+    
+  api-service:
+    build:
+      context: api
+      dockerfile: DockerFile
+    image: api-service
+    
+    environment: 
+      - MONGODB_CONNSTRING=mongodb://root:root@mongodb-service
+
+    ports:
+      - "3002:3001"
+    
+  mongodb-service:
+    image: mongo:5.0
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
