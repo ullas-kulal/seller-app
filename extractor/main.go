@@ -1,59 +1,75 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gocolly/colly"
 )
 
+// UrlDetails represents a scraped URL and product details
 type UrlDetails struct {
-	Url string `json:"url"`
+	Url     string          `json:"url"`
 	Product *ProductDetails `json:"product"`
 }
 
+// ProductDetails represents a product details
 type ProductDetails struct {
-	    Name string `json:"name"`
-		ImageURL string `json:"imageURL"`
-		Description string `json:"description"`
-		Price string       `json:"price"`
-		TotalReviews string       `json:"totalReviews"`
+	Name         string `json:"name"`
+	ImageURL     string `json:"imageURL"`
+	Description  string `json:"description"`
+	Price        string `json:"price"`
+	TotalReviews string `json:"totalReviews"`
 }
 
-func webScraper(ctx *gin.Context) {	
+// webScraper scarpes the url and fetchs the product details
+func webScraper(ctx *gin.Context) {
 	c := colly.NewCollector()
 	Pd := ProductDetails{}
-	c.OnHTML("div[id=centerCol]", func(h*colly.HTMLElement){
-					Pd.Name = string(h.ChildText("span.a-size-large.product-title-word-break"))
-					Pd.TotalReviews = string(h.ChildText( "a[id=acrCustomerReviewLink] > span[id=acrCustomerReviewText]"))
-					// Pd.Price = string(h.ChildText( "span.a-offscreen"))
-					Pd.Price = string(h.ChildText( "span[id=priceblock_ourprice]"))
-					
-					
+	c.OnHTML("div[id=centerCol]", func(h *colly.HTMLElement) {
+		Pd.Name = string(h.ChildText("span.a-size-large.product-title-word-break"))
+		Pd.TotalReviews = string(h.ChildText("a[id=acrCustomerReviewLink] > span[id=acrCustomerReviewText]"))
+		Pd.Price = string(h.ChildText("span.a-offscreen"))
 	})
-	c.OnHTML("div[id=imageBlock]", func(h*colly.HTMLElement){
-		Pd.ImageURL = string(h.ChildAttr( "img.a-dynamic-image","src" ))
+	c.OnHTML("div[id=imageBlock]", func(h *colly.HTMLElement) {
+		Pd.ImageURL = string(h.ChildAttr("img.a-dynamic-image", "src"))
 	})
-	c.OnHTML("div[id=feature-bullets]", func(h*colly.HTMLElement){
-		Pd.Description = string(h.ChildText( "span.a-list-item"))
+	c.OnHTML("div[id=feature-bullets]", func(h *colly.HTMLElement) {
+		Pd.Description = string(h.ChildText("span.a-list-item"))
 	})
-
-// url := "https://www.amazon.com/DualShock-Wireless-Controller-PlayStation-Black-4/dp/B01LWVX2RG/ref=d_bmx_dp_dbd5zd7n_sccl_2_2/142-9550004-6467604?pd_rd_w=u3Fxl&content-id=amzn1.sym.e8434dc0-bea5-41a2-9054-015496b4c898&pf_rd_p=e8434dc0-bea5-41a2-9054-015496b4c898&pf_rd_r=FWRDZKSFC6TR6J7MZZJT&pd_rd_wg=WXXI7&pd_rd_r=6da9f145-b5c6-4281-b172-652a1dcb96cf&pd_rd_i=B01LWVX2RG&psc=1"
-url :="https://www.amazon.com/PlayStation-4-Pro-1TB-Console/dp/B01LOP8EZC/"
-c.Visit(url)
-data := UrlDetails{}
-data.Url = url
-data.Product = &Pd
-ctx.JSONP(http.StatusOK, data)
-
+	url := ctx.Query("url")
+	fmt.Println(url)
+	if url == "" {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, nil)
+		return
+	}
+	c.Visit(url)
+	data := UrlDetails{Url: url, Product: &Pd}
+	jsonReq, err := json.Marshal(data)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+	}
+	response, err := http.Post("http://api-service:3001/products", "application/json", bytes.NewBuffer(jsonReq))
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+	}
+	responseData, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, err)
+	}
+	fmt.Println(string(responseData))
+	ctx.JSON(http.StatusCreated, gin.H{
+		"code":    http.StatusCreated,
+		"message": string(responseData),
+	})
 }
 
 func main() {
 	r := gin.Default()
-	r.GET("/scrape",webScraper )
-	r.POST("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+	r.POST("/products", webScraper)
 	r.Run("0:3001")
 }
