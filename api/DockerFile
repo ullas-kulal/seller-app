@@ -16,12 +16,3 @@ RUN go build -o /api-endpoint
 
 EXPOSE 3001
 CMD ["/api-endpoint" ]
-##
-## Deploy
-##
-# FROM gcr.io/distroless/static-debian11
-# ENV GIN_MODE=release
-# WORKDIR /
-
-# COPY --from=build  /api-endpoint /bin/api-endpoint
-

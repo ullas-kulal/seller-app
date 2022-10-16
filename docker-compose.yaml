@@ -5,8 +5,6 @@ services:
       context: extractor
       dockerfile: DockerFile
     image: xtractor-service
-    
-
     ports:
       - "3001:3001"
     
@@ -15,13 +13,8 @@ services:
       context: api
       dockerfile: DockerFile
     image: api-service
-    
     environment: 
       - MONGODB_CONNSTRING=mongodb://root:root@mongodb-service
-
-    ports:
-      - "3002:3001"
-    
   mongodb-service:
     image: mongo:5.0
     environment:

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -16,26 +17,29 @@ import (
 
 // ProductDetails represents a product details
 type ProductDetails struct {
-	ID           string `json:"id"`
 	Name         string `json:"name"`
 	ImageURL     string `json:"imageURL"`
 	Description  string `json:"description"`
 	Price        string `json:"price"`
-	TotalReviews string `json:"totalReviews"`
+	TotalReviews int    `json:"totalReviews"`
 }
-// UrlDetails represents a scraped URL and product details 
+
+// UrlDetails represents a scraped URL and product details
 type UrlDetails struct {
-	Url     string          `json:"url"`
-	Product *ProductDetails `json:"product"`
+	ID        string          `json:"id"`
+	Url       string          `json:"url"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+	Product   *ProductDetails `json:"product"`
 }
-//  SaveProductDetails saves a product details into	MongoDB
-func SaveProductDetails(ctx context.Context, product UrlDetails, db *mongo.Database) (interface{}, error) {
+
+// SaveProductDetails saves a product details into	MongoDB
+func SaveProductDetails(ctx context.Context, product UrlDetails, db *mongo.Database) (string, error) {
 	collection := db.Collection("products")
 	res, err := collection.InsertOne(ctx, product)
-	fmt.Println(res.InsertedID)
-	return res.InsertedID, err
+	// (primitive.ObjectID).Hex() is used to convert object id to string
+	return res.InsertedID.(primitive.ObjectID).Hex(), err
 }
-// GetProductDetails fetch a product details for a perticulat id from MongoDB
 func GetProductDetails(ctx context.Context, ID string, db *mongo.Database) (*UrlDetails, error) {
 	productDetails := UrlDetails{}
 	objectId, err := primitive.ObjectIDFromHex(ID)
@@ -45,7 +49,6 @@ func GetProductDetails(ctx context.Context, ID string, db *mongo.Database) (*Url
 	err = db.Collection("products").FindOne(ctx, bson.D{{"_id", objectId}}).Decode(&productDetails)
 	return &productDetails, err
 }
-
 func main() {
 	// URI represents mongodb Connstring
 	URI := os.Getenv("MONGODB_CONNSTRING")
@@ -61,7 +64,6 @@ func main() {
 	defer client.Disconnect(ctx)
 	fmt.Println("Connect to MongoDB server")
 	db := client.Database("sellerapp")
-
 	r := gin.Default()
 	// POST request to insert productsdetails into database
 	r.POST("/products", func(c *gin.Context) {
@@ -72,10 +74,10 @@ func main() {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, err)
 			return
 		}
-		c.AbortWithStatusJSON(http.StatusCreated, ID)
+		product.ID = ID
+		c.AbortWithStatusJSON(http.StatusCreated, product)
 		return
 	})
-
 	// GET request to fetch productsdetails from database
 	r.GET("/products/:id", func(c *gin.Context) {
 		ID := c.Param("id")
